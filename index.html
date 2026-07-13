@@ -968,6 +968,7 @@
 <!-- NARRATION PLAYER -->
 <div id="narrator-player" aria-label="Narration Player">
   <div id="narrator-glow"></div>
+  <div class="narrator-inner">
   <div id="narrator-header">
     <span id="narrator-icon">🎙</span>
     <span id="narrator-label">NARRATION</span>
@@ -1001,6 +1002,7 @@
     <button class="speed-btn" data-rate="1.0">Normal</button>
     <button class="speed-btn" data-rate="1.2">Fast</button>
   </div>
+  </div><!-- /narrator-inner -->
 </div>
 
 <!-- Floating trigger button -->
@@ -1037,33 +1039,47 @@
     transform: translateY(-2px);
   }
 
-  /* ── PLAYER PANEL ── */
+  /* ── PLAYER PANEL — full-width bottom bar ── */
   #narrator-player {
     position: fixed;
-    bottom: 92px;
-    right: 16px;
+    left: 0;
+    right: 0;
+    bottom: 0;
     z-index: 9999;
-    width: min(320px, calc(100vw - 32px));
-    max-height: min(560px, 65vh);
-    overflow-y: auto;
-    background: linear-gradient(160deg, #1a0505 0%, #0d0000 100%);
-    border: 1px solid rgba(212,175,55,0.4);
-    border-radius: 16px;
-    padding: 16px 16px 14px;
-    box-shadow: 0 0 60px rgba(139,0,0,0.5), 0 20px 60px rgba(0,0,0,0.9);
+    width: 100%;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, #1a0505 0%, #0d0000 100%);
+    border-top: 1px solid rgba(212,175,55,0.4);
+    border-radius: 16px 16px 0 0;
+    padding: 14px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -10px 50px rgba(139,0,0,0.45), 0 -4px 30px rgba(0,0,0,0.85);
     display: none;
-    flex-direction: column;
-    gap: 12px;
+    max-height: 62vh;
+    overflow-y: auto;
     font-family: 'Crimson Text', serif;
   }
-  #narrator-player.open { display: flex; animation: playerIn 0.35s cubic-bezier(0.22,1,0.36,1); }
-  @keyframes playerIn {
-    from { opacity:0; transform: translateY(20px) scale(0.95); }
-    to   { opacity:1; transform: translateY(0) scale(1); }
+  #narrator-player.open { display: block; animation: playerInUp 0.3s ease-out; }
+  @keyframes playerInUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
 
+  /* Inner content is centered with a comfortable max width, but the bar
+     itself always spans the full screen width behind it. */
+  .narrator-inner {
+    max-width: 640px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Hide the floating LISTEN button while the full-width bar is open,
+     since the bar now occupies that same corner of the screen. */
+  #narrator-player.open ~ #narrator-fab { display: none; }
+
   #narrator-glow {
-    position: absolute; inset: 0; border-radius: 16px;
+    position: absolute; inset: 0; border-radius: 16px 16px 0 0;
     background: radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.07) 0%, transparent 70%);
     pointer-events: none;
   }
@@ -1426,6 +1442,11 @@
   let advanceMsPerWord = 400;
   let fallbackWordIdx  = 0;
 
+  // Real, measured speaking pace (ms per word, normalized to rate = 1),
+  // calibrated from this exact voice/engine as it actually plays — not a
+  // guessed average. Updated every chapter, used from the very first one.
+  let calibratedMsPerWordAtRate1 = null;
+
   function stopWordAdvance() {
     if (advanceTimer) { clearInterval(advanceTimer); advanceTimer = null; }
   }
@@ -1443,11 +1464,32 @@
     stopWordAdvance();
     advanceWordsArr = (text || '').trim().split(/\s+/).filter(Boolean);
     fallbackWordIdx = 0;
-    const baseWordsPerMinute = 165; // rough average spoken-word rate at rate=1
-    advanceMsPerWord = Math.max(150, 60000 / (baseWordsPerMinute * (uttRate || 1)));
+    let msPerWord;
+    if (calibratedMsPerWordAtRate1) {
+      // Use the pace actually measured from this voice a moment ago.
+      msPerWord = calibratedMsPerWordAtRate1 / (uttRate || 1);
+    } else {
+      // No measurement yet (very first utterance) — reasonable starting guess.
+      const baseWordsPerMinute = 165;
+      msPerWord = 60000 / (baseWordsPerMinute * (uttRate || 1));
+    }
+    advanceMsPerWord = Math.max(90, msPerWord);
     if (allWordSpans.length > 0 && advanceWordsArr.length > 0) {
       advanceTimer = setInterval(tickWordAdvance, advanceMsPerWord);
     }
+  }
+
+  // Record how long an utterance actually took to speak, and fold that
+  // measurement into our running pace estimate (normalized to rate = 1),
+  // so subsequent highlighting matches the real voice instead of a guess.
+  function calibratePaceFromUtterance(text, uttRate, elapsedMs) {
+    const wordCount = (text || '').trim().split(/\s+/).filter(Boolean).length;
+    if (wordCount < 2 || elapsedMs <= 0) return;
+    const measuredAtRate1 = (elapsedMs / wordCount) * (uttRate || 1);
+    const clamped = Math.min(1400, Math.max(80, measuredAtRate1));
+    calibratedMsPerWordAtRate1 = calibratedMsPerWordAtRate1
+      ? (calibratedMsPerWordAtRate1 * 0.4 + clamped * 0.6)
+      : clamped;
   }
 
   function resumeWordAdvance() {
@@ -1618,8 +1660,13 @@
     // ── Word timing ──
     // Real 'boundary' events (when the browser fires them) resync our
     // position; the self-driven timer (started below) is what actually
-    // keeps things moving when the browser never fires them at all.
+    // keeps things moving when the browser never fires them at all — and
+    // its pace is calibrated from this exact intro utterance's real timing.
     const bodyText = ch.text;
+    const introText = intro.text;
+    let introStartedAt = null;
+    let bodyStartedAt  = null;
+
     body.onboundary = (e) => {
       if (e.name === 'word' && allWordSpans.length > 0) {
         try { highlightWordAt(e.charIndex, bodyText); }
@@ -1627,11 +1674,24 @@
       }
     };
     body.onstart = () => {
+      bodyStartedAt = Date.now();
       if (allWordSpans.length > 0) startWordAdvance(bodyText, rate);
     };
 
-    intro.onstart = () => { setPlayingState(true); setActiveChapter(idx); };
+    intro.onstart = () => {
+      setPlayingState(true);
+      setActiveChapter(idx);
+      introStartedAt = Date.now();
+    };
+    intro.onend = () => {
+      if (introStartedAt != null) {
+        calibratePaceFromUtterance(introText, intro.rate, Date.now() - introStartedAt);
+      }
+    };
     body.onend    = () => {
+      if (bodyStartedAt != null) {
+        calibratePaceFromUtterance(bodyText, rate, Date.now() - bodyStartedAt);
+      }
       stopWordAdvance();
       clearHighlight();
       if (idx + 1 < chapters.length) {
