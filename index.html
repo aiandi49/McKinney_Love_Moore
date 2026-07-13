@@ -1040,18 +1040,20 @@
   /* ── PLAYER PANEL ── */
   #narrator-player {
     position: fixed;
-    bottom: 100px;
-    right: 32px;
+    bottom: 92px;
+    right: 16px;
     z-index: 9999;
-    width: 320px;
+    width: min(320px, calc(100vw - 32px));
+    max-height: min(560px, 65vh);
+    overflow-y: auto;
     background: linear-gradient(160deg, #1a0505 0%, #0d0000 100%);
     border: 1px solid rgba(212,175,55,0.4);
     border-radius: 16px;
-    padding: 20px 18px 16px;
+    padding: 16px 16px 14px;
     box-shadow: 0 0 60px rgba(139,0,0,0.5), 0 20px 60px rgba(0,0,0,0.9);
     display: none;
     flex-direction: column;
-    gap: 14px;
+    gap: 12px;
     font-family: 'Crimson Text', serif;
   }
   #narrator-player.open { display: flex; animation: playerIn 0.35s cubic-bezier(0.22,1,0.36,1); }
@@ -1233,19 +1235,6 @@
     }
     #narrator-fab span:first-child { font-size: 15px; }
 
-    #narrator-player {
-      bottom: 72px;
-      right: 12px;
-      left: 12px;
-      width: auto;
-      max-width: 300px;
-      margin-left: auto;
-      padding: 14px 14px 12px;
-      gap: 10px;
-      border-radius: 12px;
-      max-height: 65vh;
-      overflow-y: auto;
-    }
     #narrator-icon { font-size: 15px; }
     #narrator-label { font-size: 9px; letter-spacing: 3px; }
     #narrator-close { font-size: 16px; }
