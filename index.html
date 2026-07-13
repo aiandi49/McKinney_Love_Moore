@@ -1220,6 +1220,50 @@
     border-radius: 3px;
     padding: 0 2px;
   }
+
+  /* ── MOBILE: scale the narrator down so it doesn't overtake the page ── */
+  @media (max-width: 600px) {
+    #narrator-fab {
+      bottom: 16px;
+      right: 16px;
+      padding: 10px 16px;
+      font-size: 11px;
+      letter-spacing: 2px;
+      gap: 6px;
+    }
+    #narrator-fab span:first-child { font-size: 15px; }
+
+    #narrator-player {
+      bottom: 72px;
+      right: 12px;
+      left: 12px;
+      width: auto;
+      max-width: 300px;
+      margin-left: auto;
+      padding: 14px 14px 12px;
+      gap: 10px;
+      border-radius: 12px;
+      max-height: 65vh;
+      overflow-y: auto;
+    }
+    #narrator-icon { font-size: 15px; }
+    #narrator-label { font-size: 9px; letter-spacing: 3px; }
+    #narrator-close { font-size: 16px; }
+
+    #narrator-chapter-display { padding: 8px 10px; }
+    #narrator-chapter-name { font-size: 11px; }
+    #narrator-chapter-sub { font-size: 9px; }
+
+    #narrator-controls { gap: 8px; }
+    .narrator-btn { width: 32px; height: 32px; font-size: 11px; }
+    .narrator-btn-main { width: 44px; height: 44px; font-size: 15px; }
+
+    #narrator-chapter-list { max-height: 90px; }
+    .narrator-ch-item { padding: 5px 9px; font-size: 11px; }
+
+    .narrator-speed-label { font-size: 8px; }
+    .speed-btn { padding: 3px 7px; font-size: 9px; }
+  }
 </style>
 
 </div><!-- /page-wrap -->
