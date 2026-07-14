@@ -1230,21 +1230,22 @@
       border-radius: 16px;
       padding: 12px 16px;
       row-gap: 8px;
-      column-gap: 12px;
+      column-gap: 10px;
       max-height: 68px;
       overflow: hidden;
       transition: max-height 0.28s ease;
       box-shadow: 0 6px 30px rgba(0,0,0,0.85), 0 0 40px rgba(139,0,0,0.35);
     }
-    /* Single centered row (chapter name + controls) that expands to reveal
-       the chapter list and speed controls below, still vertically settled. */
+    /* Single centered row: chapter name | play controls | expand/close,
+       each in its own column so nothing overlaps. Expands downward to
+       reveal the chapter list and speed controls. */
     #narrator-player.open {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr auto auto;
       grid-template-areas:
-        "chapter controls"
-        "list     list"
-        "speed    speed";
+        "chapter controls head"
+        "list     list     list"
+        "speed    speed    speed";
       align-items: center;
     }
     #narrator-player.expanded {
@@ -1255,10 +1256,12 @@
     #narrator-glow { display: none; }
 
     #narrator-header {
-      position: absolute;
-      top: 10px;
-      right: 14px;
-      gap: 14px;
+      grid-area: head;
+      position: static;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-left: 4px;
     }
     #narrator-icon, #narrator-label { display: none; }
     #narrator-expand {
@@ -1281,7 +1284,7 @@
       text-align: left;
       background: none;
       border: none;
-      padding: 0 44px 0 0;
+      padding: 0;
       margin: 0;
       min-width: 0;
     }
@@ -1317,6 +1320,18 @@
     #narrator-player.expanded #narrator-chapter-list,
     #narrator-player.expanded #narrator-speed {
       display: flex;
+    }
+
+    /* Reserve room at the bottom of the page while the strip is open, so it
+       sits ABOVE the text instead of covering it. Toggled via JS (body gets
+       .narr-space-collapsed / .narr-space-expanded added/removed). */
+    body.narr-space-collapsed {
+      padding-bottom: 100px;
+      transition: padding-bottom 0.28s ease;
+    }
+    body.narr-space-expanded {
+      padding-bottom: 64vh;
+      transition: padding-bottom 0.28s ease;
     }
   }
 
@@ -1659,9 +1674,20 @@
   }
 
   // ── Event bindings ──
+  // Keeps the page content clear of the fixed mobile strip: whenever the
+  // strip is open/closed/expanded, we resize the page's bottom padding so
+  // nothing ever sits underneath the panel.
+  function syncBodySpacing() {
+    const isOpen = player.classList.contains('open');
+    const isExpanded = player.classList.contains('expanded');
+    document.body.classList.toggle('narr-space-collapsed', isOpen && !isExpanded);
+    document.body.classList.toggle('narr-space-expanded', isOpen && isExpanded);
+  }
+
   fab.addEventListener('click', () => {
     const open = player.classList.toggle('open');
     if (open) { chapters = getChapterTexts(); setActiveChapter(currentIdx); }
+    syncBodySpacing();
   });
 
   btnClose.addEventListener('click', () => {
@@ -1670,6 +1696,7 @@
     window.speechSynthesis.cancel();
     clearHighlight();
     setPlayingState(false);
+    syncBodySpacing();
   });
 
   // Mobile-only slim strip: tap to reveal chapter list + speed controls
@@ -1677,6 +1704,7 @@
   if (btnExpand) {
     btnExpand.addEventListener('click', () => {
       player.classList.toggle('expanded');
+      syncBodySpacing();
     });
   }
 
