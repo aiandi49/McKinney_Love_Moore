@@ -518,33 +518,33 @@
     font-family: 'Rajdhani', sans-serif;
     font-size: 15px;
     letter-spacing: 1px;
+    white-space: nowrap;
   }
 
   .toc-list li:last-child { border-bottom: none; }
 
   .toc-list .toc-num {
     color: var(--blood);
-    min-width: 32px;
+    min-width: 96px;
+    flex: 0 0 auto;
     text-shadow: 0 0 8px rgba(255,26,26,0.5);
   }
 
   .toc-list .toc-label {
-    flex: 1;
+    flex: 0 1 auto;
     color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-left: 10px;
   }
 
   .toc-list .toc-dots {
     flex: 1;
     border-bottom: 1px dotted rgba(200,151,42,0.2);
-    margin: 0 12px;
+    margin: 0 0 0 12px;
     height: 1px;
     align-self: center;
-  }
-
-  .toc-list .toc-page {
-    color: rgba(200,151,42,0.5);
-    font-size: 12px;
-    letter-spacing: 2px;
+    min-width: 24px;
   }
 
   /* Chapter transition ornament */
@@ -677,16 +677,16 @@
   <div class="toc">
     <div class="toc-title">— Table of Contents —</div>
     <ul class="toc-list">
-      <li><span class="toc-num">I.</span><span class="toc-label">Roots of Ruin — Where It All Began</span><span class="toc-dots"></span><span class="toc-page">Ch. 1</span></li>
-      <li><span class="toc-num">II.</span><span class="toc-label">The <span class="ugly">U.G.L.Y.</span> Inheritance</span><span class="toc-dots"></span><span class="toc-page">Ch. 2</span></li>
-      <li><span class="toc-num">III.</span><span class="toc-label">Sharmuta — The Eye of the Storm</span><span class="toc-dots"></span><span class="toc-page">Ch. 3</span></li>
-      <li><span class="toc-num">IV.</span><span class="toc-label">The Harassing Phone Calls Begin</span><span class="toc-dots"></span><span class="toc-page">Ch. 4</span></li>
-      <li><span class="toc-num">V.</span><span class="toc-label">Mama Jean Draws the Line</span><span class="toc-dots"></span><span class="toc-page">Ch. 5</span></li>
-      <li><span class="toc-num">VI.</span><span class="toc-label">The Son Rises — Call Unanswered</span><span class="toc-dots"></span><span class="toc-page">Ch. 6</span></li>
-      <li><span class="toc-num">VII.</span><span class="toc-label">The Cousin Screams Into the Void</span><span class="toc-dots"></span><span class="toc-page">Ch. 7</span></li>
-      <li><span class="toc-num">VIII.</span><span class="toc-label">The Reckoning — When <span class="ugly">U.G.L.Y.</span> Meets Its Match</span><span class="toc-dots"></span><span class="toc-page">Ch. 8</span></li>
-      <li><span class="toc-num">IX.</span><span class="toc-label">As If Nothing Happened</span><span class="toc-dots"></span><span class="toc-page">Ch. 9</span></li>
-      <li><span class="toc-num">X.</span><span class="toc-label">Epilogue — Lucky vs. <span class="ugly">U.G.L.Y.</span></span><span class="toc-dots"></span><span class="toc-page">Ep.</span></li>
+      <li><span class="toc-num">Chapter 1</span><span class="toc-label">Roots of Ruin — Where It All Began</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Chapter 2</span><span class="toc-label">The <span class="ugly">U.G.L.Y.</span> Inheritance</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Chapter 3</span><span class="toc-label">Sharmuta — The Eye of the Storm</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Chapter 4</span><span class="toc-label">The Harassing Phone Calls Begin</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Chapter 5</span><span class="toc-label">Mama Jean Draws the Line</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Chapter 6</span><span class="toc-label">The Son Rises — Call Unanswered</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Chapter 7</span><span class="toc-label">The Cousin Screams Into the Void</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Chapter 8</span><span class="toc-label">The Reckoning — When <span class="ugly">U.G.L.Y.</span> Meets Its Match</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Chapter 9</span><span class="toc-label">As If Nothing Happened</span><span class="toc-dots"></span></li>
+      <li><span class="toc-num">Epilogue</span><span class="toc-label">Lucky vs. <span class="ugly">U.G.L.Y.</span></span><span class="toc-dots"></span></li>
     </ul>
   </div>
 
@@ -1640,8 +1640,12 @@
   // ── Chapter text extraction (plain text for TTS) ──
   function getChapterTexts() {
     const chapters = [];
-    // Slot 0 — intro
+    // Slot 0 — intro (cover, disclaimer, press release, table of contents)
     const allText = [];
+    const coverSection = document.querySelector('.cover .page-wrap') || document.querySelector('.cover');
+    if (coverSection) allText.push(coverSection.innerText.trim());
+    const warnSection = document.querySelector('.warning-box');
+    if (warnSection) allText.push(warnSection.innerText.trim());
     const pressSection = document.querySelector('.press-release-header');
     if (pressSection) allText.push(pressSection.innerText.trim());
     const toc = document.querySelector('.toc');
@@ -1763,6 +1767,72 @@
     // A chapter always begins at the top of its own section.
     scrollToChapter(idx);
 
+    const applyVoice = utt => {
+      utt.voice  = selectedVoice || pickVoice();
+      utt.lang   = 'en-US';
+      utt.rate   = rate;
+      utt.pitch  = 1.05;
+      utt.volume = 1;
+    };
+
+    // Chapter title utterance (dramatic, slow)
+    const intro = new SpeechSynthesisUtterance(ch.name + '.');
+    applyVoice(intro);
+    intro.rate  = rate * 0.80;
+    intro.pitch = 1.12;
+    intro.onstart = () => {
+      if (myToken !== speakToken) return; // stale utterance
+      setPlayingState(true); setActiveChapter(idx);
+    };
+
+    // ── PROLOGUE (idx 0): guided tour of the front matter ──
+    // Reads each opening section IN ORDER — cover page, disclaimer,
+    // press release, table of contents — scrolling to each section as
+    // it starts reading it, then auto-advances into Chapter 1.
+    if (idx === 0) {
+      const segments = [
+        { el: document.querySelector('.cover .page-wrap') || document.querySelector('.cover'), top: true },
+        { el: document.querySelector('.warning-box') },
+        { el: document.querySelector('.press-release-header') },
+        { el: document.querySelector('.toc') }
+      ].filter(s => s.el);
+
+      window.speechSynthesis.speak(intro);
+
+      segments.forEach((seg, si) => {
+        const u = new SpeechSynthesisUtterance(seg.el.innerText.trim());
+        applyVoice(u);
+        u.onstart = () => {
+          if (myToken !== speakToken) return; // stale utterance
+          if (seg.top) {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          } else {
+            const y = seg.el.getBoundingClientRect().top + window.scrollY - 24;
+            window.scrollTo({ top: y, behavior: 'smooth' });
+          }
+        };
+        if (si === segments.length - 1) {
+          u.onend = () => {
+            if (myToken !== speakToken) return; // cancelled — do NOT auto-advance
+            if (chapters.length > 1) {
+              currentIdx = 1;
+              setActiveChapter(1);
+              speak(1);
+            } else {
+              setPlayingState(false);
+            }
+          };
+        }
+        u.onerror = () => {
+          if (myToken !== speakToken) return;
+          setPlayingState(false);
+        };
+        window.speechSynthesis.speak(u);
+      });
+      return;
+    }
+
+    // ── REGULAR CHAPTERS ──
     // Wrap words in the target chapter (idempotent)
     const anchorId = CHAPTER_ANCHORS[idx];
     const chEl = anchorId ? document.getElementById(anchorId) : null;
@@ -1771,22 +1841,9 @@
       buildWordSpanIndex(idx);
     }
 
-    // Chapter title utterance (dramatic, slow)
-    const intro = new SpeechSynthesisUtterance(ch.name + '.');
     // Body utterance
     const body  = new SpeechSynthesisUtterance(ch.text);
-
-    const applyVoice = utt => {
-      utt.voice  = selectedVoice || pickVoice();
-      utt.lang   = 'en-US';
-      utt.rate   = rate;
-      utt.pitch  = 1.05;
-      utt.volume = 1;
-    };
-    applyVoice(intro);
     applyVoice(body);
-    intro.rate  = rate * 0.80;
-    intro.pitch = 1.12;
 
     // ── Word boundary event ──
     const bodyText = ch.text;
@@ -1797,10 +1854,6 @@
       }
     };
 
-    intro.onstart = () => {
-      if (myToken !== speakToken) return; // stale utterance
-      setPlayingState(true); setActiveChapter(idx);
-    };
     body.onend    = () => {
       if (myToken !== speakToken) return; // cancelled — do NOT auto-advance
       clearHighlight();
