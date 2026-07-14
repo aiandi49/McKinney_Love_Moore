@@ -1036,6 +1036,8 @@
     border: 1px solid #d4af37;
     border-radius: 50px;
     padding: 14px 22px;
+    min-width: 158px;
+    justify-content: center;
     font-family: 'Cinzel', serif;
     font-size: 13px;
     letter-spacing: 3px;
@@ -1055,16 +1057,18 @@
   /* ── CHAPTER NAV FAB (independent of narration) ── */
   #chapternav-fab {
     position: fixed;
-    bottom: 96px;
+    bottom: 92px;
     right: 32px;
     z-index: 9998;
     background: linear-gradient(135deg, #1a0505, #0d0000);
     color: #d4af37;
     border: 1px solid rgba(212,175,55,0.6);
     border-radius: 50px;
-    padding: 12px 20px;
+    padding: 14px 22px;
+    min-width: 158px;
+    justify-content: center;
     font-family: 'Cinzel', serif;
-    font-size: 12px;
+    font-size: 13px;
     letter-spacing: 3px;
     cursor: pointer;
     display: flex;
@@ -1146,15 +1150,16 @@
 
   @media (max-width: 640px) {
     #chapternav-fab {
-      bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
       right: 16px;
-      padding: 9px 14px;
-      font-size: 10px;
+      padding: 10px 16px;
+      min-width: 128px;
+      font-size: 11px;
     }
     #chapternav-panel {
       left: 10px;
       right: 10px;
-      bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(126px + env(safe-area-inset-bottom, 0px));
       width: auto;
       max-height: 50vh;
     }
@@ -1338,6 +1343,7 @@
       bottom: calc(16px + env(safe-area-inset-bottom, 0px));
       right: 16px;
       padding: 10px 16px;
+      min-width: 128px;
       font-size: 11px;
     }
     /* Hide the FAB while the strip is open so it can't float over the panel */
@@ -1676,15 +1682,25 @@
   function pickVoice() {
     const voices = window.speechSynthesis.getVoices();
     if (!voices.length) return null;
-    for (const pref of PREFERRED_VOICES) {
-      const v = voices.find(v => v.name === pref);
-      if (v) return v;
+    // IMPORTANT: local (on-device) voices fire the word-boundary events that
+    // drive the text highlighting. Chrome's remote "Google ..." voices never
+    // fire them, which silently breaks highlighting in Chrome. So we search
+    // local voices first, and only fall back to remote ones if none exist.
+    const pools = [voices.filter(v => v.localService), voices];
+    for (const pool of pools) {
+      for (const pref of PREFERRED_VOICES) {
+        const v = pool.find(v => v.name === pref);
+        if (v) return v;
+      }
+      const femaleGuess = pool.find(v =>
+        v.lang.startsWith('en') &&
+        (v.name.match(/female|woman|girl|femi/i) || v.name.match(/zira|hazel|samantha|karen|alice/i))
+      );
+      if (femaleGuess) return femaleGuess;
+      const anyEn = pool.find(v => v.lang.startsWith('en'));
+      if (anyEn) return anyEn;
     }
-    const femaleGuess = voices.find(v =>
-      v.lang.startsWith('en') &&
-      (v.name.match(/female|woman|girl|femi/i) || v.name.match(/zira|hazel|samantha|karen|alice/i))
-    );
-    return femaleGuess || voices.find(v => v.lang.startsWith('en')) || voices[0];
+    return voices[0];
   }
 
   window.speechSynthesis.onvoiceschanged = () => { selectedVoice = pickVoice(); };
@@ -1895,6 +1911,9 @@
   setActiveChapter(0);
 
   // ── Standalone chapter navigation (works with or without narration) ──
+  // Kept in lock-step with the narrator: jumping to a chapter here also
+  // moves the narrator's position, so if you pause, jump, and press play,
+  // it reads the chapter you're actually looking at — not the old one.
   (function initChapterNav() {
     const navFab   = document.getElementById('chapternav-fab');
     const navPanel = document.getElementById('chapternav-panel');
@@ -1902,21 +1921,30 @@
     const navList  = document.getElementById('chapternav-list');
     if (!navFab || !navPanel || !navList) return;
 
-    // Build the jump list from the same source used by the narrator:
-    // slot 0 = intro/prologue area, then each .chapter section in order.
-    const introTarget = document.querySelector('.toc') || document.querySelector('.press-release-header');
-    navList.innerHTML = '';
+    function jumpTo(idx) {
+      const wasPlaying = isPlaying;
+      // Drop any current/paused utterance so stale speech can't resume later.
+      if (window.speechSynthesis.speaking || window.speechSynthesis.paused) {
+        window.speechSynthesis.cancel();
+        clearHighlight();
+        setPlayingState(false);
+      }
+      setActiveChapter(idx);      // narrator now points at this chapter
+      scrollToChapter(idx);       // idx 0 = very top of the page
+      if (wasPlaying) speak(idx); // if it was playing, keep playing — here
+      navPanel.classList.remove('open');
+    }
 
+    // Build the jump list: slot 0 = top of page, then each chapter in order
+    // (same indexing the narrator uses).
+    navList.innerHTML = '';
     const introItem = document.createElement('div');
     introItem.className = 'chapternav-item';
     introItem.textContent = 'Prologue / Intro';
-    introItem.addEventListener('click', () => {
-      if (introTarget) introTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      navPanel.classList.remove('open');
-    });
+    introItem.addEventListener('click', () => jumpTo(0));
     navList.appendChild(introItem);
 
-    document.querySelectorAll('.chapter').forEach((div) => {
+    document.querySelectorAll('.chapter').forEach((div, i) => {
       const numEl   = div.querySelector('.chapter-number');
       const titleEl = div.querySelector('.chapter-title');
       const num   = numEl   ? numEl.innerText.trim()   : '';
@@ -1924,10 +1952,7 @@
       const item = document.createElement('div');
       item.className = 'chapternav-item';
       item.textContent = (num + (title ? ' — ' + title : '')).trim() || 'Chapter';
-      item.addEventListener('click', () => {
-        div.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        navPanel.classList.remove('open');
-      });
+      item.addEventListener('click', () => jumpTo(i + 1));
       navList.appendChild(item);
     });
 
