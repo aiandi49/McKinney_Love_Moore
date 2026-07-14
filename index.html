@@ -1010,6 +1010,20 @@
   <span id="fab-label">LISTEN</span>
 </button>
 
+<!-- Standalone chapter navigation — always available, works whether or not
+     narration is on. Lets the reader jump straight to any chapter. -->
+<button id="chapternav-fab" title="Jump to a chapter" aria-label="Jump to a chapter">
+  <span>📖</span>
+  <span id="chapternav-fab-label">CHAPTERS</span>
+</button>
+<div id="chapternav-panel" aria-label="Chapter navigation">
+  <div id="chapternav-header">
+    <span id="chapternav-title">JUMP TO CHAPTER</span>
+    <button id="chapternav-close" aria-label="Close chapter navigation" title="Close">✕</button>
+  </div>
+  <div id="chapternav-list"></div>
+</div>
+
 <style>
   /* ── FAB ── */
   #narrator-fab {
@@ -1036,6 +1050,114 @@
     background: linear-gradient(135deg, #a00000, #600000);
     box-shadow: 0 0 40px rgba(212,175,55,0.55), 0 4px 30px rgba(0,0,0,0.8);
     transform: translateY(-2px);
+  }
+
+  /* ── CHAPTER NAV FAB (independent of narration) ── */
+  #chapternav-fab {
+    position: fixed;
+    bottom: 96px;
+    right: 32px;
+    z-index: 9998;
+    background: linear-gradient(135deg, #1a0505, #0d0000);
+    color: #d4af37;
+    border: 1px solid rgba(212,175,55,0.6);
+    border-radius: 50px;
+    padding: 12px 20px;
+    font-family: 'Cinzel', serif;
+    font-size: 12px;
+    letter-spacing: 3px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 0 20px rgba(212,175,55,0.25), 0 4px 16px rgba(0,0,0,0.7);
+    transition: all 0.3s ease;
+  }
+  #chapternav-fab:hover {
+    background: linear-gradient(135deg, #2a0808, #150000);
+    box-shadow: 0 0 32px rgba(212,175,55,0.4), 0 4px 24px rgba(0,0,0,0.8);
+    transform: translateY(-2px);
+  }
+  /* Hide while the narrator player is open — its own chapter list covers this */
+  #narrator-player.open ~ #chapternav-fab { display: none; }
+
+  #chapternav-panel {
+    position: fixed;
+    bottom: 152px;
+    right: 32px;
+    z-index: 9999;
+    width: 300px;
+    max-height: 60vh;
+    background: linear-gradient(160deg, #1a0505 0%, #0d0000 100%);
+    border: 1px solid rgba(212,175,55,0.4);
+    border-radius: 16px;
+    padding: 16px 16px 12px;
+    box-shadow: 0 0 60px rgba(139,0,0,0.5), 0 20px 60px rgba(0,0,0,0.9);
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    font-family: 'Crimson Text', serif;
+  }
+  #chapternav-panel.open { display: flex; animation: playerIn 0.35s cubic-bezier(0.22,1,0.36,1); }
+  #narrator-player.open ~ #chapternav-panel { display: none; }
+
+  #chapternav-header {
+    display: flex; align-items: center; gap: 8px;
+  }
+  #chapternav-title {
+    font-family: 'Cinzel', serif;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: #d4af37;
+    flex: 1;
+  }
+  #chapternav-close {
+    background: none; border: none;
+    color: rgba(212,175,55,0.5);
+    font-size: 14px; cursor: pointer;
+    transition: color 0.2s;
+    padding: 0;
+  }
+  #chapternav-close:hover { color: #d4af37; }
+
+  #chapternav-list {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(212,175,55,0.3) transparent;
+  }
+  .chapternav-item {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    color: rgba(168,152,128,0.8);
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    letter-spacing: 0.3px;
+  }
+  .chapternav-item:hover {
+    background: rgba(212,175,55,0.08);
+    color: #d4af37;
+    border-color: rgba(212,175,55,0.15);
+  }
+
+  @media (max-width: 640px) {
+    #chapternav-fab {
+      bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+      right: 16px;
+      padding: 9px 14px;
+      font-size: 10px;
+    }
+    #chapternav-panel {
+      left: 10px;
+      right: 10px;
+      bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+      width: auto;
+      max-height: 50vh;
+    }
   }
 
   /* ── PLAYER PANEL ── */
@@ -1771,6 +1893,58 @@
 
   chapters = getChapterTexts();
   setActiveChapter(0);
+
+  // ── Standalone chapter navigation (works with or without narration) ──
+  (function initChapterNav() {
+    const navFab   = document.getElementById('chapternav-fab');
+    const navPanel = document.getElementById('chapternav-panel');
+    const navClose = document.getElementById('chapternav-close');
+    const navList  = document.getElementById('chapternav-list');
+    if (!navFab || !navPanel || !navList) return;
+
+    // Build the jump list from the same source used by the narrator:
+    // slot 0 = intro/prologue area, then each .chapter section in order.
+    const introTarget = document.querySelector('.toc') || document.querySelector('.press-release-header');
+    navList.innerHTML = '';
+
+    const introItem = document.createElement('div');
+    introItem.className = 'chapternav-item';
+    introItem.textContent = 'Prologue / Intro';
+    introItem.addEventListener('click', () => {
+      if (introTarget) introTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      navPanel.classList.remove('open');
+    });
+    navList.appendChild(introItem);
+
+    document.querySelectorAll('.chapter').forEach((div) => {
+      const numEl   = div.querySelector('.chapter-number');
+      const titleEl = div.querySelector('.chapter-title');
+      const num   = numEl   ? numEl.innerText.trim()   : '';
+      const title = titleEl ? titleEl.innerText.trim() : '';
+      const item = document.createElement('div');
+      item.className = 'chapternav-item';
+      item.textContent = (num + (title ? ' — ' + title : '')).trim() || 'Chapter';
+      item.addEventListener('click', () => {
+        div.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        navPanel.classList.remove('open');
+      });
+      navList.appendChild(item);
+    });
+
+    navFab.addEventListener('click', () => {
+      navPanel.classList.toggle('open');
+    });
+    navClose.addEventListener('click', () => {
+      navPanel.classList.remove('open');
+    });
+    document.addEventListener('click', (e) => {
+      if (navPanel.classList.contains('open') &&
+          !navPanel.contains(e.target) &&
+          !navFab.contains(e.target)) {
+        navPanel.classList.remove('open');
+      }
+    });
+  })();
 })();
 </script>
 
