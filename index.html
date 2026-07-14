@@ -1741,12 +1741,27 @@
   }
 
   // ── Speech with word boundary highlighting ──
+  // Each call to speak() gets a token. Browsers fire onend even when speech
+  // is cancel()ed, which used to trigger the auto-advance chain and start
+  // narration on its own. Events from utterances whose token is stale are
+  // now ignored, so cancel means CANCEL.
+  let speakToken = 0;
+
+  function stopSpeech() {
+    speakToken++;
+    window.speechSynthesis.cancel();
+  }
+
   function speak(idx) {
+    const myToken = ++speakToken;
     window.speechSynthesis.cancel();
     clearHighlight();
     chapters = getChapterTexts();
     const ch = chapters[idx];
     if (!ch) return;
+
+    // A chapter always begins at the top of its own section.
+    scrollToChapter(idx);
 
     // Wrap words in the target chapter (idempotent)
     const anchorId = CHAPTER_ANCHORS[idx];
@@ -1776,24 +1791,31 @@
     // ── Word boundary event ──
     const bodyText = ch.text;
     body.onboundary = (e) => {
+      if (myToken !== speakToken) return; // stale utterance
       if (e.name === 'word' && allWordSpans.length > 0) {
         highlightWordAt(e.charIndex, bodyText);
       }
     };
 
-    intro.onstart = () => { setPlayingState(true); setActiveChapter(idx); };
+    intro.onstart = () => {
+      if (myToken !== speakToken) return; // stale utterance
+      setPlayingState(true); setActiveChapter(idx);
+    };
     body.onend    = () => {
+      if (myToken !== speakToken) return; // cancelled — do NOT auto-advance
       clearHighlight();
       if (idx + 1 < chapters.length) {
         currentIdx = idx + 1;
         setActiveChapter(currentIdx);
-        scrollToChapter(currentIdx);
         speak(currentIdx);
       } else {
         setPlayingState(false);
       }
     };
-    body.onerror = () => { clearHighlight(); setPlayingState(false); };
+    body.onerror = () => {
+      if (myToken !== speakToken) return; // stale utterance
+      clearHighlight(); setPlayingState(false);
+    };
 
     window.speechSynthesis.speak(intro);
     window.speechSynthesis.speak(body);
@@ -1831,7 +1853,7 @@
   btnClose.addEventListener('click', () => {
     player.classList.remove('open');
     player.classList.remove('expanded');
-    window.speechSynthesis.cancel();
+    stopSpeech();
     clearHighlight();
     setPlayingState(false);
     syncBodySpacing();
@@ -1849,7 +1871,7 @@
   btnPlay.addEventListener('click', pauseOrResume);
 
   btnPrev.addEventListener('click', () => {
-    window.speechSynthesis.cancel();
+    stopSpeech();
     clearHighlight();
     setPlayingState(false);
     const prev = Math.max(0, currentIdx - 1);
@@ -1859,7 +1881,7 @@
   });
 
   btnNext.addEventListener('click', () => {
-    window.speechSynthesis.cancel();
+    stopSpeech();
     clearHighlight();
     setPlayingState(false);
     chapters = getChapterTexts();
@@ -1871,7 +1893,7 @@
 
   chItems.forEach((el, i) => {
     el.addEventListener('click', () => {
-      window.speechSynthesis.cancel();
+      stopSpeech();
       clearHighlight();
       setPlayingState(false);
       setActiveChapter(i);
@@ -1886,7 +1908,7 @@
       speedBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       rate = parseFloat(btn.dataset.rate);
-      if (isPlaying) { window.speechSynthesis.cancel(); speak(currentIdx); }
+      if (isPlaying) { stopSpeech(); speak(currentIdx); }
     });
   });
 
@@ -1924,8 +1946,10 @@
     function jumpTo(idx) {
       const wasPlaying = isPlaying;
       // Drop any current/paused utterance so stale speech can't resume later.
+      // stopSpeech() invalidates the utterance token, so the browser's
+      // cancel-triggered onend can never auto-start the next chapter.
       if (window.speechSynthesis.speaking || window.speechSynthesis.paused) {
-        window.speechSynthesis.cancel();
+        stopSpeech();
         clearHighlight();
         setPlayingState(false);
       }
